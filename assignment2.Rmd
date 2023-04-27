@@ -1,9 +1,11 @@
 ---
 title: "Assignment#2 Carlo, Javier"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 date: "2023-04-03"
-editor_options: 
-  markdown: 
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -26,30 +28,6 @@ Run your model for the clim.txt data that is posted on Canvas
 3.  year
 
 4.  wy (water year)
-
-### The next 3 columns are the climate observations
-
-1.  maximum (tmax_c)
-
-2.  daily temperature
-
-3.  minimum (tmin_c) daily temperature
-
-## Notes
-
-We will build on this on Tuesday's class. There are always multiple ways
-to code something in R; Remember that we want to strive for our code
-being as simple and streamline as possible.
-
-Style counts. Make sure you choose meaningful variable names and add
-comments. Include comments at the top of the function to tell the user
-what the inputs/outputs are and their units and format.
-
-## What to hand in on Canvas:
-
-This is a Rmarkdown file that includes your conceptual model (embed as
-picture) and shows how you applied the function to the test climate data
-(clim.txt)
 
 ## Introduction:
 
@@ -79,12 +57,16 @@ climate data and output the almond crop anomalies.
 ```{r}
 #load in the packages
 library(tidyverse)
+
+library(purrr)
+
+library(ggpubr)
 ```
 
 ```{r}
 
 # Define a function that takes a file path and optional parameter values
-almond_model <- function(file, parm1 = 0.015, parm2 = 0.0046, parm3 = 0.07, parm4 = 0.0043, parm5 = 0.28){
+almond_model <- function(file, parm1 = -0.015, parm2 = -0.0046, parm3 = -0.07, parm4 = 0.0043, parm5 = 0.28){
   
   # Read in the file as a data frame, rename the columns, and remove the first row
   clim_df <- read.table(file) |> 
@@ -112,11 +94,15 @@ almond_model <- function(file, parm1 = 0.015, parm2 = 0.0046, parm3 = 0.07, parm
     pivot_wider(names_from = clim_obs, values_from = value) |> 
     
     # Calculate the anomaly using the specified parameter values
-    mutate(anomaly = -parm1 * tmin_c - parm2 * tmin_c^2 - parm3 * precip + parm4 * precip^2 + parm5)
-  
+    mutate(anomaly = -parm1 * tmin_c + parm2 * tmin_c^2 + parm3 * precip + parm4 * precip^2 + parm5) |>
+    
+    # Create profit column
+    mutate(profit = 100000 + 1000*anomaly)
+    
+    mean_profit = mean(clim_df$profit)
   
   # Return the final data frame
-  return(clim_df)
+  return(list(clim_df = clim_df, mean_profit = mean_profit))
   
 }
 
@@ -127,11 +113,53 @@ Test our function!
 ```{r}
 
 # Call the almond_model function with a file path, and store the result in a new data frame}
-clim_df <- almond_model("/Users/javipatron/Documents/MEDS/Courses/eds230/assignments/assignment2/clim.txt")
+clim_df <- almond_model("clim.txt")
 
 # Print a summary of the anomaly column in the clim_df data frame
-summary(clim_df$anomaly)
+data_frame_climate <- clim_df[1]
+mean_profit_value <- clim_df[2]
 ```
+
+```{r}
+# Set up parameter variation distrobutions
+nsamples = 30
+
+parm1 = rnorm(mean=-0.015, sd = 0.1, n=nsamples)
+parm2 = rnorm(mean=-0.0046, sd = 0.1, n=nsamples)
+
+parms = cbind.data.frame(parm1, parm2)
+
+# use pmap 
+# takes function name and then names of all parameters that don't change
+results = parms %>% pmap(almond_model,
+                         file = "clim.txt",
+                         parm3=-0.07, 
+                         parm4=0.0043, 
+                         parm5 = 0.28)
+```
+
+```{r}
+# now we can extract results from the list as above
+mean_profit = map_df(results,`[`, c("mean_profit"))
+
+# and we can add the parameter values for each run
+mean_profit_w_params = cbind.data.frame(mean_profit, parms)
+```
+
+```{r}
+# create plots
+p1 = ggplot(mean_profit_w_params, 
+            aes(parm1, mean_profit, col=parm2))+geom_point(cex=2)+
+  labs(y="Mean Annual Profit USD", x="Temperature Paramerter 1")
+
+p2 = ggplot(mean_profit_w_params, 
+            aes(parm2, mean_profit, col=parm1))+geom_point(cex=2)+
+  labs(y="Mean Annual Profit USD", x="Temperature Paramerter 2")
+
+ggarrange(p1,p2)
+```
+
+# 
 
 In your same groups -
 
