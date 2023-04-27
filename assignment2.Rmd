@@ -1,0 +1,156 @@
+---
+title: "Assignment#2 Carlo, Javier"
+output: html_document
+date: "2023-04-03"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Assignment 2
+
+### Participants: Carlo Broderick, Javier Patrón
+
+## Task:
+
+Run your model for the clim.txt data that is posted on Canvas
+
+## Data:
+
+#### `clim.txt` has the following columns these 4 columns tell you when climate observations were made:
+
+1.  day
+
+2.  month
+
+3.  year
+
+4.  wy (water year)
+
+### The next 3 columns are the climate observations
+
+1.  maximum (tmax_c)
+
+2.  daily temperature
+
+3.  minimum (tmin_c) daily temperature
+
+## Notes
+
+We will build on this on Tuesday's class. There are always multiple ways
+to code something in R; Remember that we want to strive for our code
+being as simple and streamline as possible.
+
+Style counts. Make sure you choose meaningful variable names and add
+comments. Include comments at the top of the function to tell the user
+what the inputs/outputs are and their units and format.
+
+## What to hand in on Canvas:
+
+This is a Rmarkdown file that includes your conceptual model (embed as
+picture) and shows how you applied the function to the test climate data
+(clim.txt)
+
+## Introduction:
+
+California's perennial crop yields are threatened by the potential
+impacts of future climate change, making it critical to develop models
+that can project how different climate scenarios may affect crop yields.
+The Lobell et al. 2006 model below represents yield anomalies (Y) as a
+function of climate variables, including minimum temperature (Tn),
+maximum temperature (Tx), and precipitation (P), with the subscript
+numbers indicating the month of the variable.
+
+$$Y=−0.015×Tminfeb​​−0.0046×Tminfeb^2​−0.07×Pjan​+0.0043×Pjan^2​+0.28$$
+
+This model is designed to incorporate both climate and crop
+uncertainties to provide more accurate projections of future crop yields
+under different climate scenarios. The accurate projections provided by
+this model can help policymakers and farmers to develop strategies to
+mitigate the potential impacts of climate change on California's
+perennial crop yields. Below is diagram of how we implemented this model
+in R and below the diagram is the code used to take in the provided
+climate data and output the almond crop anomalies.
+
+![Conceptual Model](Almond%20Diagram.png)
+
+## Develop a function to execute the model and evaluate it using the clim.txt dataset.
+
+```{r}
+#load in the packages
+library(tidyverse)
+```
+
+```{r}
+
+# Define a function that takes a file path and optional parameter values
+almond_model <- function(file, parm1 = 0.015, parm2 = 0.0046, parm3 = 0.07, parm4 = 0.0043, parm5 = 0.28){
+  
+  # Read in the file as a data frame, rename the columns, and remove the first row
+  clim_df <- read.table(file) |> 
+  rename(day = V1, month = V2, year = V3, water_year = V4, tmax_c = V5, tmin_c = V6, precip = V7) |> 
+  slice(-1) |> 
+    mutate_all(as.numeric) |> # Convert all columns to numeric
+    filter(month %in% c(1,2)) |> # Filter for rows where month is 1 or 2
+    
+    group_by(year, month) |> # Group the data by year and month,
+    summarize(tmin_c = min(tmin_c, na.rm = TRUE), # Calculate the minimum tmin_c and total precip for each group
+              precip = sum(precip, na.rm = TRUE)) |> 
+    
+    # Reshape the data from wide to long format
+    pivot_longer(cols = 3:4,
+                 names_to = "clim_obs",
+                 values_to = "value") |> 
+    
+    # Filter for rows where month is 2 and clim_obs is tmin_c, or where month is 1 and clim_obs is precip
+    filter((month == 2 & clim_obs == "tmin_c") | (month == 1 & clim_obs == "precip")) |> 
+    
+    # Remove the month column
+    select(-month) |> 
+    
+    # Reshape the data from long to wide format, with columns for tmin_c and precip
+    pivot_wider(names_from = clim_obs, values_from = value) |> 
+    
+    # Calculate the anomaly using the specified parameter values
+    mutate(anomaly = -parm1 * tmin_c - parm2 * tmin_c^2 - parm3 * precip + parm4 * precip^2 + parm5)
+  
+  
+  # Return the final data frame
+  return(clim_df)
+  
+}
+
+```
+
+Test our function!
+```{r}
+
+# Call the almond_model function with a file path, and store the result in a new data frame}
+clim_df <- almond_model("/Users/javipatron/Documents/MEDS/Courses/eds230/assignments/assignment2/clim.txt")
+
+# Print a summary of the anomaly column in the clim_df data frame
+summary(clim_df$anomaly)
+```
+
+## Check your work
+
+1.  The maximum almond yield anomaly should be approximately 1920
+    ton/acre
+
+2.  The lowest almond yield anomaly should be approximately -0.027
+    ton/acre
+
+3.  The mean almond yield anomaly should be approximately 182 ton/acre
+
+## Grading Rubric Conceptual
+
+1.  Model (20 pts)
+
+2.  A clear diagram that corresponds with your R function (10 pts)
+
+3.  Inputs and output and parameters shown on the diagram (10 pts)
+
+4.  R Implementation (30 pts) correct function implementation (\*.R
+    file) (10 pts)
+
+5.  Application of the function to clim.txt (in Rmarkdown file) (10 pts)
